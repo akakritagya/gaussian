@@ -2,7 +2,7 @@
 
 A numerical method for solving systems of linear equations of the form A·x = b, implemented with partial pivoting for improved numerical stability.
 
-<img width="4470" height="8837" alt="GAUSSIAN ELIMINATION" src="https://github.com/user-attachments/assets/52320c8e-16c0-4b53-8972-f1b8f3e56a2d" />
+![GAUSSIAN ELIMINATION](https://github.com/user-attachments/assets/52320c8e-16c0-4b53-8972-f1b8f3e56a2d)
 
 ## Overview
 
