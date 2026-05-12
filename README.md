@@ -2,6 +2,8 @@
 
 A numerical method for solving systems of linear equations of the form A·x = b, implemented with partial pivoting for improved numerical stability.
 
+<img width="4470" height="8837" alt="GAUSSIAN ELIMINATION" src="https://github.com/user-attachments/assets/52320c8e-16c0-4b53-8972-f1b8f3e56a2d" />
+
 ## Overview
 
 Gaussian elimination is one of the most fundamental algorithms in linear algebra — and by extension, in machine learning and data science. At its core, machine learning often reduces to solving or optimizing systems of equations, and understanding how matrices encode and solve those systems is essential groundwork.
@@ -13,6 +15,8 @@ This implementation walks through:
 - **Back substitution** — solving for unknowns from the bottom up
 
 Whether you're learning numerical methods, brushing up on linear algebra, or tracing the mathematical roots of how models like linear regression work under the hood, this is a great place to start.
+
+This project solves system A.x = b with n-equations with n-variables. It won't be able to conclude for infinitely many solution.
 
 ## Project Setup
 
