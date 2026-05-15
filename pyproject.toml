@@ -1,7 +1,7 @@
 [project]
 name = "gaussian"
 version = "0.1.0"
-description = "Add your description here"
+description = "gaussian elimination implementation"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

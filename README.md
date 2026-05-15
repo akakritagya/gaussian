@@ -49,7 +49,7 @@ source .venv/bin/activate  # Linux/macOS
 ### Run
 
 ```bash
-uv run gaussian.py
+uv run src/gaussian.py
 ```
 
 ### Alternative: Interactive demo
@@ -57,11 +57,11 @@ uv run gaussian.py
 There is also a Jupyter notebook demo:
 
 ```bash
-uv run jupyter lab demo.ipynb
+uv run jupyter lab
 ```
 
 ## Demo
 
 Visit `demo.ipynb` and you will find different scenarios for which `Gaussian` is tested.
 
-If you can find other test cases, then you can add and play around.
+If you can think of other test cases, then you can add and play around.
