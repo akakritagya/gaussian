@@ -99,7 +99,6 @@ class Gaussian:
         self._reduced_echelon_M = self._reduced_echelon_form()
         if self._reduced_echelon_M is not None:
             solution_vec = self._reduced_echelon_M[:, -1]
-            solution_vec.round(6)
             self.solution = {
                 self.x[i]: float(value) for i, value in enumerate(solution_vec)
             }
@@ -156,18 +155,8 @@ class Gaussian:
 
                 if not np.isclose(coeff, 0):
                     coeff_str = format_number(abs(coeff))
-                    if terms:
-                        # Not the first term, add sign
-                        if coeff > 0:
-                            terms.append(f"+ {coeff_str}{var}")
-                        else:
-                            terms.append(f"- {coeff_str}{var}")
-                    else:
-                        # First term
-                        if coeff > 0:
-                            terms.append(f"{coeff_str}{var}")
-                        else:
-                            terms.append(f"- {coeff_str}{var}")
+                    prefix = "- " if coeff < 0 else "+ " if terms else ""
+                    terms.append(f"{prefix}{coeff_str}{var}")
 
             rhs = self.B[i, 0]
             rhs_str = format_number(rhs)
@@ -196,59 +185,49 @@ class Gaussian:
     def _echelon_form(self) -> np.ndarray | None:
         """Reduce the augmented matrix to row echelon form (forward pass).
 
-        Uses partial pivoting for numerical stability. Each pivot is
-        scaled to 1 and elements below it are zeroed out.
+        Uses partial pivoting: for each column, the row with the largest
+        remaining magnitude becomes the pivot, which is both more
+        numerically stable and doubles as the singularity check (no
+        separate determinant computation is needed). Each pivot is scaled
+        to 1 and the rows below it are zeroed out in a single vectorized
+        update.
 
         Returns:
             np.ndarray | None: Augmented matrix in row echelon form, or
             ``None`` if A is singular.
         """
-        det_A = np.linalg.det(self.A)
-        if np.isclose(det_A, 0):
-            return None
-
         M = self._augmented_M.copy()
         for row in range(self.n):
-            pivot_candidate = M[row, row]
-            if np.isclose(pivot_candidate, 0):
-                index_first_non_zero_value_below_pivot_candidate = (
-                    self._get_index_first_non_zero_value_from_column(
-                        M, row, row
-                    )
-                )
-                M = self._swap_rows(
-                    M, row, index_first_non_zero_value_below_pivot_candidate
-                )
-                pivot = M[row, row]
-            else:
-                pivot = pivot_candidate
+            pivot_row = row + int(np.argmax(np.abs(M[row:, row])))
+            pivot = M[pivot_row, row]
+            if np.isclose(pivot, 0):
+                return None
+            if pivot_row != row:
+                M[[row, pivot_row]] = M[[pivot_row, row]]
 
-            M[row] = (1 / pivot) * M[row]
-
-            for i in range(row + 1, self.n):
-                value_below_pivot = M[i, row]
-                M[i] = M[i] - value_below_pivot * M[row]
+            M[row] /= pivot
+            M[row + 1 :] -= np.outer(M[row + 1 :, row], M[row])
         return M
 
     def _reduced_echelon_form(self) -> np.ndarray | None:
         """Reduce echelon form to RREF via back substitution.
 
+        Column-only partial pivoting during the forward pass never
+        permutes columns, so pivot columns line up with the diagonal --
+        row ``row``'s pivot is always column ``row``, and each back
+        substitution step clears it above in a single vectorized update.
+
         Returns:
-            dict[str, float] | None: Dict mapping variable names to float
-            solution values, or ``None`` if echelon form is unavailable
-            (singular matrix).
+            np.ndarray | None: Augmented matrix in reduced row echelon
+            form, or ``None`` if echelon form is unavailable (singular
+            matrix).
         """
         if self._echelon_M is None:
             return None
         M = self._echelon_M.copy()
 
-        for row in reversed(range(self.n)):
-            index_pivot_column = self._get_index_first_non_zero_value_from_row(
-                M, row
-            )
-            for i in range(row):
-                value_to_reduce = M[i, index_pivot_column]
-                M[i] = M[i] - value_to_reduce * M[row]
+        for row in reversed(range(1, self.n)):
+            M[:row] -= np.outer(M[:row, row], M[row])
 
         return M
 
@@ -286,47 +265,48 @@ class Gaussian:
         )
         RHS_RE = re.compile(r"=\s*([+-]?\s*\d+\.?\d*)\s*$")
 
+        # Parse each equation exactly once, then build the matrix in a
+        # second pass -- the variable-to-column mapping isn't known until
+        # every equation has been scanned.
         variables: set[str] = set()
+        parsed_equations: list[tuple[list[tuple[str, str, str]], float]] = []
         for equation in equations:
-            lhs = equation.split("=")[0]
-            for _, _, variable in TERM_RE.findall(lhs):
-                if variable not in variables:
-                    variables.add(variable)
+            lhs = equation.partition("=")[0]
+            terms = TERM_RE.findall(lhs)
+            variables.update(variable for _, _, variable in terms)
 
-        variables_sorted = sorted(list(variables))
-        vars_index = {
-            value: index for index, value in enumerate(variables_sorted)
-        }
+            rhs_match = RHS_RE.search(equation)
+            if rhs_match is None:
+                raise ValueError(f"Couldn't parse the RHS of: {equation}")
+            rhs_value = float(rhs_match.group(1).replace(" ", ""))
+            parsed_equations.append((terms, rhs_value))
+
+        x = sorted(variables)
+        vars_index = {name: index for index, name in enumerate(x)}
         num_equations = len(equations)
-        num_variables = len(variables_sorted)
+        num_variables = len(x)
 
         if num_equations != num_variables:
             raise ValueError(
                 f"System has {num_equations} equations but "
-                f"{num_variables} variables {variables_sorted}. Gaussian "
+                f"{num_variables} variables {x}. Gaussian "
                 "elimination requires a square system."
             )
 
         A = np.zeros((num_equations, num_variables), dtype=np.float64)
         b = np.zeros(num_equations, dtype=np.float64)
-        x = variables_sorted.copy()
 
-        for row, equation in enumerate(equations):
-            rhs_match = RHS_RE.search(equation)
-            if rhs_match is None:
-                raise ValueError(f"Couldn't parse the RHS of: {equation}")
-            b[row] = float(rhs_match.group(1).replace(" ", ""))
-
-            lhs = equation.split("=")[0]
-            for sign, coeff, variable in TERM_RE.findall(lhs):
-                coeff = float(coeff) if coeff else 1.0
-                if sign == "-":
-                    coeff *= -1.0
+        for row, (terms, rhs_value) in enumerate(parsed_equations):
+            b[row] = rhs_value
+            for sign, coeff, variable in terms:
                 if variable not in vars_index:
                     raise ValueError(
-                        f"Unknown variable '{variable}' in: {equation}"
+                        f"Unknown variable '{variable}' in: {equations[row]}"
                     )
-                A[row, vars_index[variable]] = coeff
+                value = float(coeff) if coeff else 1.0
+                if sign == "-":
+                    value *= -1.0
+                A[row, vars_index[variable]] = value
         return (A, b, x)
 
     @staticmethod
@@ -341,66 +321,6 @@ class Gaussian:
             np.ndarray: Horizontally stacked matrix of shape ``(n, n+1)``.
         """
         return np.hstack((A, B))
-
-    @staticmethod
-    def _swap_rows(
-        M: np.ndarray, row_index_1: int, row_index_2: int
-    ) -> np.ndarray:
-        """Return a copy of M with two rows swapped (used for partial pivoting).
-
-        Args:
-            M (np.ndarray): Input matrix (not mutated).
-            row_index_1 (int): First row index.
-            row_index_2 (int): Second row index.
-
-        Returns:
-            np.ndarray: New matrix with the specified rows exchanged.
-        """
-        M = M.copy()
-        M[[row_index_1, row_index_2]] = M[[row_index_2, row_index_1]]
-        return M
-
-    @staticmethod
-    def _get_index_first_non_zero_value_from_column(
-        M: np.ndarray, column: int, starting_row: int
-    ) -> int:
-        """Find the first non-zero row in a column, from ``starting_row`` down.
-
-        Args:
-            M (np.ndarray): Matrix to search.
-            column (int): Column index to inspect.
-            starting_row (int): Row offset to begin the search.
-
-        Returns:
-            int: Absolute row index of the first non-zero entry, or ``-1``
-            if none found.
-        """
-        column_vector = M[starting_row:, column]
-        for index, value in enumerate(column_vector):
-            if not (np.isclose(value, 0)):
-                return index + starting_row
-        return -1
-
-    @staticmethod
-    def _get_index_first_non_zero_value_from_row(
-        M: np.ndarray, row: int
-    ) -> int:
-        """Find the first non-zero column in a row, excluding the last column.
-
-        Args:
-            M (np.ndarray): Matrix to search.
-            row (int): Row index to inspect.
-
-        Returns:
-            int: Column index of the first non-zero entry, or ``-1`` if
-            none found.
-        """
-        M = M[:, :-1]
-        row_vector = M[row]
-        for index, value in enumerate(row_vector):
-            if not np.isclose(value, 0):
-                return index
-        return -1
 
 
 # -------------------------------------------------------------------------
