@@ -65,3 +65,25 @@ uv run jupyter lab
 Visit `demo.ipynb` and you will find different scenarios for which `Gaussian` is tested.
 
 If you can think of other test cases, then you can add and play around.
+
+## Development
+
+Dev tooling (`ruff`, `mypy`, `pytest`, `pre-commit`) is managed as a `uv` dependency group.
+
+```bash
+# Install dev dependencies
+uv sync
+
+# Install git hooks (lint + type check on commit, tests on push)
+uv run pre-commit install --install-hooks \
+  --hook-type pre-commit --hook-type pre-push --hook-type commit-msg
+```
+
+```bash
+uv run ruff check . --fix   # lint
+uv run ruff format .        # format
+uv run mypy                  # type check
+uv run pytest                # run tests in tests/
+```
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) — the `commit-msg` hook enforces this.
