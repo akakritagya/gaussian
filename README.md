@@ -18,6 +18,18 @@ Whether you're learning numerical methods, brushing up on linear algebra, or tra
 
 This project solves system A.x = b with n-equations with n-variables. It won't be able to conclude for infinitely many solution.
 
+## Usage
+
+```python
+from gaussian import Gaussian
+
+ge = Gaussian(["x + y = 3", "x - y = -1"])
+ge.solve()
+print(ge.solution)  # {'x': 1.0, 'y': 2.0}
+```
+
+Equations are plain strings (`'2x + 3y = 8'`); an implicit coefficient of 1 is supported (e.g. `'x - y = 0'`).
+
 ## Project Setup
 
 Prerequisites:
@@ -40,11 +52,9 @@ pip install uv
 ```bash
 # Sync dependencies and create virtual environment
 uv sync
-
-# Activate the virtual environment
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate  # Windows
 ```
+
+No need to activate the virtual environment — `uv run` picks it up automatically.
 
 ### Run
 
